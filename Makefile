@@ -15,12 +15,18 @@ endif
 # Terraform targets
 # -----------------------------------------------------------------------------
 
-.PHONY: init update plan apply format clean cli create-backend destroy-backend
+.PHONY: init init-backend update plan apply format clean cli create-backend destroy-backend
 init:
 	-terraform init \
 	-force-copy \
 	-input=false \
 	-upgrade
+
+init-backend:
+	-terraform init \
+	-force-copy \
+	-input=false \
+	-backend-config=beconf.tfvars
 
 update:
 	terraform get -update
@@ -38,9 +44,10 @@ apply:
 format:
 	terraform fmt
 
+destroy:
+	terraform destroy -auto-approve -input=false
+
 clean:
-	@rm -rf beconf.tfvarse
-	@rm -rf beconf.tfvars
 	@rm -rf .terraform
 	@rm -rf .terraform.d
 	@rm -rf *.terraform.tfstate
@@ -50,14 +57,10 @@ clean:
 cli:
 	@docker run -it --rm -v $(PWD):/root terrafrom-aws bash
 
-create-backend:
-	@cd remote-state
-	@terraform init -force-copy -input=false
-	@terraform apply -input=false -auto-approve
+create-backend:init apply init-backend
 
-destroy-backend:
-	@cd remote-state
-	@terraform destroy -auto-approve -input=false
+destroy-backend: destroy clean
+
 
 # -----------------------------------------------------------------------------
 # Information from git.
