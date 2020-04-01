@@ -1,24 +1,24 @@
-variable "s3_bucket_name" {
+variable "S3_BUCKET_NAME" {
   type        = string
   description = "S3 Bucket Name"
 }
 
-variable "s3_bucket_encryption" {
+variable "S3_ENC" {
   type        = string
   description = "S3 Bucket Encryption Algorithm"
 }
 
-variable "DynamoDB_name" {
+variable "S3_VER" {
   type        = string
-  description = "Dynamo DB Name"
+  description = "S3 Versioning"
 }
 
-variable "region" {
+variable "DYNAMODB_TABLE_NAME" {
+  type        = string
+  description = "Dynamo DB table name"
+}
+
+variable "REGION" {
   type        = string
   description = "AWS Region"
-}
-
-variable "backend_key" {
-  type        = string
-  description = "path to store terraform state file"
 }

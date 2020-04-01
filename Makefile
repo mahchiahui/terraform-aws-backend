@@ -2,31 +2,86 @@
 # Terraform Mandatory Environment Variables
 # -----------------------------------------------------------------------------
 
-# check if the following variables are set, if not set, fail
 ifndef AWS_ACCESS_KEY_ID
-$(error TF_VAR_region is not defined, please set it as an environment variable before proceeding)
+$(error AWS_ACCESS_KEY_ID is not defined, please set it as an environment variable before proceeding)
 endif
 
 ifndef AWS_SECRET_ACCESS_KEY
-$(error TF_VAR_region is not defined, please set it as an environment variable before proceeding)
+$(error AWS_SECRET_ACCESS_KEY is not defined, please set it as an environment variable before proceeding)
 endif
+
+ifndef TF_VAR_S3_BUCKET_NAME
+$(error TF_VAR_S3_BUCKET_NAME is not defined, please set it as an environment variable before proceeding)
+endif
+
+ifndef TF_VAR_S3_ENC
+$(error TF_VAR_S3_ENC is not defined, please set it as an environment variable before proceeding)
+endif
+
+ifndef TF_VAR_S3_VER
+$(error TF_VAR_S3_VER is not defined, please set it as an environment variable before proceeding)
+endif
+
+ifndef TF_VAR_DYNAMODB_TABLE_NAME
+$(error TF_VAR_DYNAMODB_TABLE_NAME is not defined, please set it as an environment variable before proceeding)
+endif
+
+ifndef TF_VAR_REGION
+$(error TF_VAR_REGION is not defined, please set it as an environment variable before proceeding)
+endif
+
+ifndef TF_VAR_BACKEND_ENC
+$(error TF_VAR_REGION is not defined, please set it as an environment variable before proceeding)
+endif
+
+ifndef TF_VAR_TERRAFORM_STATE_FILE
+$(error TF_VAR_TERRAFORM_STATE_FILE is not defined, please set it as an environment variable before proceeding)
+endif
+
+# -----------------------------------------------------------------------------
+# Terraform helper targets
+# -----------------------------------------------------------------------------
+
+.PHONY: change-to-local change-to-s3 create-beconf fetch-statefile clean
+
+change-to-local:
+	@export BACKEND_TYPE=local; envsubst < templates/template.backend > backend.tf
+
+change-to-s3:
+	@export BACKEND_TYPE=s3; envsubst < templates/template.backend > backend.tf
+
+create-beconf:
+	@envsubst < templates/template.beconf > beconf.tfvars
+
+fetch-statefile:
+	@aws s3 cp s3://$(TF_VAR_S3_BUCKET_NAME)/$(TF_VAR_TERRAFORM_STATE_FILE) .
+
+clean:
+	@rm -rf .terraform
+	@rm -rf .terraform.d
+	@rm -rf beconf.tfvars
+	@rm -rf backend.tf
+	@rm -rf terraform.tfstate terraform.tfstate.backup
+	@rm -rf errored.tfstate
+	@rm -rf crash.log
 
 # -----------------------------------------------------------------------------
 # Terraform targets
 # -----------------------------------------------------------------------------
 
-.PHONY: init init-backend update plan apply format clean cli create-backend destroy-backend
+.PHONY: init init-backend update plan apply format cli create-backend destroy-backend 
 init:
-	-terraform init \
+	@terraform init \
 	-force-copy \
 	-input=false \
 	-upgrade
 
 init-backend:
-	-terraform init \
+	@terraform init \
 	-force-copy \
 	-input=false \
 	-backend-config=beconf.tfvars
+	@rm -rf terraform.tfstate terraform.tfstate.backup backend.tf beconf.tfvars
 
 update:
 	terraform get -update
@@ -37,7 +92,7 @@ plan:
 	-refresh=true
 
 apply:
-	-terraform apply \
+	@terraform apply \
 	-input=false \
 	-auto-approve
 
@@ -47,20 +102,12 @@ format:
 destroy:
 	terraform destroy -auto-approve -input=false
 
-clean:
-	@rm -rf .terraform
-	@rm -rf .terraform.d
-	@rm -rf *.terraform.tfstate
-	@rm -rf errored.tfstate
-	@rm -rf crash.log
-
 cli:
 	@docker run -it --rm -v $(PWD):/root terrafrom-aws bash
 
-create-backend:init apply init-backend
+create-backend:init apply change-to-s3 create-beconf init-backend
 
-destroy-backend: destroy clean
-
+destroy-backend:change-to-local init destroy clean
 
 # -----------------------------------------------------------------------------
 # Information from git.
