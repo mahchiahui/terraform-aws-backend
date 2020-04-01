@@ -1,0 +1,9 @@
+export TF_VAR_S3_BUCKET_NAME=""
+export TF_VAR_S3_ENC=""
+export TF_VAR_S3_VER=
+export TF_VAR_DYNAMODB_TABLE_NAME=""
+export TF_VAR_REGION=""
+export TF_VAR_BACKEND_ENC=
+export TF_VAR_TERRAFORM_STATE_FILE=""
+export AWS_ACCESS_KEY_ID=""
+export AWS_SECRET_ACCESS_KEY=""

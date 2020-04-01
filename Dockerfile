@@ -30,7 +30,6 @@ RUN git clone https://github.com/hashicorp/terraform.git ./ \
     && /bin/bash scripts/build.sh
 
 WORKDIR $GOPATH
-ENTRYPOINT ["terraform"]
 
 
 

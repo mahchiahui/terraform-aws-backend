@@ -53,9 +53,6 @@ change-to-s3:
 create-beconf:
 	@envsubst < templates/template.beconf > beconf.tfvars
 
-fetch-statefile:
-	@aws s3 cp s3://$(TF_VAR_S3_BUCKET_NAME)/$(TF_VAR_TERRAFORM_STATE_FILE) .
-
 clean:
 	@rm -rf .terraform
 	@rm -rf .terraform.d
@@ -103,7 +100,7 @@ destroy:
 	terraform destroy -auto-approve -input=false
 
 cli:
-	@docker run -it --rm -v $(PWD):/root terrafrom-aws bash
+	docker run -it --rm -v $(PWD):/root terraform-aws-backend bash
 
 create-backend:init apply change-to-s3 create-beconf init-backend
 
