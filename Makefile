@@ -10,53 +10,69 @@ ifndef AWS_SECRET_ACCESS_KEY
 $(error AWS_SECRET_ACCESS_KEY is not defined, please set it as an environment variable before proceeding)
 endif
 
-ifndef TF_VAR_S3_BUCKET_NAME
-$(error TF_VAR_S3_BUCKET_NAME is not defined, please set it as an environment variable before proceeding)
+ifndef AWS_DEFAULT_REGION
+$(error AWS_DEFAULT_REGION is not defined, please set it as an environment variable before proceeding)
 endif
 
-ifndef TF_VAR_S3_ENC
-$(error TF_VAR_S3_ENC is not defined, please set it as an environment variable before proceeding)
-endif
+# -----------------------------------------------------------------------------
+# Information from git.
+# -----------------------------------------------------------------------------
 
-ifndef TF_VAR_S3_VER
-$(error TF_VAR_S3_VER is not defined, please set it as an environment variable before proceeding)
-endif
+GIT_BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
+GIT_REPOSITORY_NAME := $(shell git config --get remote.origin.url | cut -d'/' -f5 | cut -d'.' -f1)
+GIT_ACCOUNT_NAME := $(shell git config --get remote.origin.url | cut -d'/' -f4)
+GIT_SHA := $(shell git log --pretty=format:'%H' -n 1)
+GIT_TAG ?= $(shell git describe --always --tags | awk -F "-" '{print $$1}')
+GIT_TAG_END ?= HEAD
+GIT_VERSION := $(shell git describe --always --tags --long --dirty | sed -e 's/\-0//' -e 's/\-g.......//')
+GIT_VERSION_LONG := $(shell git describe --always --tags --long --dirty)
 
-ifndef TF_VAR_DYNAMODB_TABLE_NAME
-$(error TF_VAR_DYNAMODB_TABLE_NAME is not defined, please set it as an environment variable before proceeding)
-endif
+# -----------------------------------------------------------------------------
+# Docker Variables
+# -----------------------------------------------------------------------------
 
-ifndef TF_VAR_REGION
-$(error TF_VAR_REGION is not defined, please set it as an environment variable before proceeding)
-endif
+BASE_IMAGE ?= golang:alpine
+TERRAFORM_VERSION ?= 0.12.24
+DOCKER_IMAGE_PACKAGE := $(GIT_REPOSITORY_NAME)-package:$(GIT_VERSION)
+DOCKER_IMAGE_TAG ?= $(GIT_REPOSITORY_NAME):$(GIT_VERSION)
+DOCKER_IMAGE_NAME := $(GIT_REPOSITORY_NAME)
 
-ifndef TF_VAR_BACKEND_ENC
-$(error TF_VAR_REGION is not defined, please set it as an environment variable before proceeding)
-endif
+# -----------------------------------------------------------------------------
+# Terraform variables
+# -----------------------------------------------------------------------------
 
-ifndef TF_VAR_TERRAFORM_STATE_FILE
-$(error TF_VAR_TERRAFORM_STATE_FILE is not defined, please set it as an environment variable before proceeding)
-endif
+.EXPORT_ALL_VARIABLES:
+TF_VAR_S3_BUCKET_NAME:= $(GIT_ACCOUNT_NAME)-$(GIT_REPOSITORY_NAME)
+TF_VAR_DYNAMODB_TABLE_NAME:= $(GIT_ACCOUNT_NAME)-$(GIT_REPOSITORY_NAME)
+TF_VAR_BUCKET_KEY := backend/$(GIT_REPOSITORY_NAME).tfstate
 
 # -----------------------------------------------------------------------------
 # Terraform helper targets
 # -----------------------------------------------------------------------------
 
-.PHONY: change-to-local change-to-s3 create-beconf fetch-statefile clean
+.PHONY: change-to-local change-to-s3 fetch-statefile clean
 
 change-to-local:
-	@export BACKEND_TYPE=local; envsubst < templates/template.backend > backend.tf
+	@export BACKEND_TYPE=local; \
+	export BUCKET=""; \
+	export KEY=""; \
+	export REGION=""; \
+	export DYNAMODB_TABLE=""; \
+	export ENCRYPT=""; \
+	envsubst < templates/template.backend > backend.tf
 
 change-to-s3:
-	@export BACKEND_TYPE=s3; envsubst < templates/template.backend > backend.tf
-
-create-beconf:
-	@envsubst < templates/template.beconf > beconf.tfvars
+	@export BACKEND_TYPE=s3; \
+	export BUCKET="bucket = \"$(TF_VAR_S3_BUCKET_NAME)\""; \
+	export KEY="key = \"$(TF_VAR_BUCKET_KEY)\""; \
+	export REGION="region = \"$(AWS_DEFAULT_REGION)\""; \
+	export DYNAMODB_TABLE="dynamodb_table = \"$(TF_VAR_DYNAMODB_TABLE_NAME)\""; \
+	export ENCRYPT="encrypt = \"true\""; \
+	envsubst < templates/template.backend > backend.tf
 
 clean:
 	@rm -rf .terraform
 	@rm -rf .terraform.d
-	@rm -rf beconf.tfvars
 	@rm -rf backend.tf
 	@rm -rf terraform.tfstate terraform.tfstate.backup
 	@rm -rf errored.tfstate
@@ -77,8 +93,8 @@ init-backend:
 	@terraform init \
 	-force-copy \
 	-input=false \
-	-backend-config=beconf.tfvars
-	@rm -rf terraform.tfstate terraform.tfstate.backup backend.tf beconf.tfvars
+	-upgrade
+	@rm -rf terraform.tfstate terraform.tfstate.backup backend.tf
 
 update:
 	terraform get -update
@@ -100,34 +116,19 @@ destroy:
 	terraform destroy -auto-approve -input=false
 
 cli:
-	docker run -it --rm -v $(PWD):/root terraform-aws-backend bash
+	docker run \
+	-it \
+	--rm \
+	-v $(PWD):/root \
+	--env AWS_ACCESS_KEY_ID=$(AWS_ACCESS_KEY_ID) \
+	--env AWS_SECRET_ACCESS_KEY=$(AWS_SECRET_ACCESS_KEY) \
+	--env AWS_DEFAULT_REGION=$(AWS_DEFAULT_REGION) \
+	$(DOCKER_IMAGE_NAME) \
+	bash
 
-create-backend:init apply change-to-s3 create-beconf init-backend
+create-backend:init apply change-to-s3 init-backend
 
 destroy-backend:change-to-local init destroy clean
-
-# -----------------------------------------------------------------------------
-# Information from git.
-# -----------------------------------------------------------------------------
-
-GIT_BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
-GIT_REPOSITORY_NAME := $(shell basename `git rev-parse --show-toplevel`)
-GIT_SHA := $(shell git log --pretty=format:'%H' -n 1)
-GIT_TAG ?= $(shell git describe --always --tags | awk -F "-" '{print $$1}')
-GIT_TAG_END ?= HEAD
-GIT_VERSION := $(shell git describe --always --tags --long --dirty | sed -e 's/\-0//' -e 's/\-g.......//')
-GIT_VERSION_LONG := $(shell git describe --always --tags --long --dirty)
-
-# -----------------------------------------------------------------------------
-# Docker Variables
-# -----------------------------------------------------------------------------
-
-BASE_IMAGE ?= golang:alpine
-TERRAFORM_VERSION ?= 0.12.24
-DOCKER_IMAGE_PACKAGE := $(GIT_REPOSITORY_NAME)-package:$(GIT_VERSION)
-DOCKER_IMAGE_TAG ?= $(GIT_REPOSITORY_NAME):$(GIT_VERSION)
-DOCKER_IMAGE_NAME := $(GIT_REPOSITORY_NAME)
-
 
 # -----------------------------------------------------------------------------
 # Docker Build Targets

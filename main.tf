@@ -1,13 +1,12 @@
 provider "aws" {
-  region = var.REGION
 }
 
 module "s3_state" {
   source             = "github.com/mahchiahui/terraform-aws-module//services/s3_state?ref=v0.0.5"
   s3_name            = var.S3_BUCKET_NAME
-  versioning_enabled = var.S3_VER
+  versioning_enabled = true
   force_destroy      = true
-  sse_algorithm      = var.S3_ENC
+  sse_algorithm      = "AES256"
 }
 
 module "dynamodb_state" {
