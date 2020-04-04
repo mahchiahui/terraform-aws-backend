@@ -2,6 +2,9 @@
 # Terraform Mandatory Environment Variables
 # -----------------------------------------------------------------------------
 
+TARGETS_TO_CHECK := "cli init init-backend update plan apply format destroy backend create-backend destroy-backend"
+
+ifeq ($(findstring $(MAKECMDGOALS),$(TARGETS_TO_CHECK)),$(MAKECMDGOALS))
 ifndef AWS_ACCESS_KEY_ID
 $(error AWS_ACCESS_KEY_ID is not defined, please set it as an environment variable before proceeding)
 endif
@@ -12,6 +15,7 @@ endif
 
 ifndef AWS_DEFAULT_REGION
 $(error AWS_DEFAULT_REGION is not defined, please set it as an environment variable before proceeding)
+endif
 endif
 
 # -----------------------------------------------------------------------------
@@ -31,7 +35,7 @@ GIT_VERSION_LONG := $(shell git describe --always --tags --long --dirty)
 # Docker Variables
 # -----------------------------------------------------------------------------
 
-BASE_IMAGE ?= golang:alpine
+BASE_IMAGE ?= golang:1.14.1-alpine3.11
 TERRAFORM_VERSION ?= 0.12.24
 DOCKER_IMAGE_PACKAGE := $(GIT_REPOSITORY_NAME)-package:$(GIT_VERSION)
 DOCKER_IMAGE_TAG ?= $(GIT_REPOSITORY_NAME):$(GIT_VERSION)
@@ -42,9 +46,8 @@ DOCKER_IMAGE_NAME := $(GIT_REPOSITORY_NAME)
 # -----------------------------------------------------------------------------
 
 .EXPORT_ALL_VARIABLES:
-TF_VAR_S3_BUCKET_NAME:= $(GIT_ACCOUNT_NAME)-$(GIT_REPOSITORY_NAME)
-TF_VAR_DYNAMODB_TABLE_NAME:= $(GIT_ACCOUNT_NAME)-$(GIT_REPOSITORY_NAME)
-TF_VAR_BUCKET_KEY := backend/$(GIT_REPOSITORY_NAME).tfstate
+TF_VAR_s3_bucket_name:= $(GIT_ACCOUNT_NAME)-$(GIT_REPOSITORY_NAME)
+TF_VAR_bucket_key := backend/$(GIT_REPOSITORY_NAME).tfstate
 
 # -----------------------------------------------------------------------------
 # Terraform helper targets
@@ -63,10 +66,10 @@ change-to-local:
 
 change-to-s3:
 	@export BACKEND_TYPE=s3; \
-	export BUCKET="bucket = \"$(TF_VAR_S3_BUCKET_NAME)\""; \
-	export KEY="key = \"$(TF_VAR_BUCKET_KEY)\""; \
+	export BUCKET="bucket = \"$(TF_VAR_s3_bucket_name)\""; \
+	export KEY="key = \"$(TF_VAR_bucket_key)\""; \
 	export REGION="region = \"$(AWS_DEFAULT_REGION)\""; \
-	export DYNAMODB_TABLE="dynamodb_table = \"$(TF_VAR_DYNAMODB_TABLE_NAME)\""; \
+	export DYNAMODB_TABLE="dynamodb_table = \"$(TF_VAR_s3_bucket_name)\""; \
 	export ENCRYPT="encrypt = \"true\""; \
 	envsubst < templates/template.backend > backend.tf
 
